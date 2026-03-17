@@ -74,12 +74,12 @@ export default function ProfilePage() {
                       <td className="px-6 py-3">
                         <img
                           src={u.thumbnail_url || u.image_url}
-                          alt={u.plant_common_name || "Upload"}
+                          alt={u.ai_best_match_name || "Upload"}
                           className="w-12 h-12 object-cover rounded"
                         />
                       </td>
                       <td className="px-6 py-3 text-sm text-gray-900">
-                        {u.plant_common_name || u.plant_scientific_name}
+                        {u.ai_best_match_name || "Pending identification"}
                       </td>
                       <td className="px-6 py-3 text-sm text-gray-600">
                         {new Date(u.submitted_at).toLocaleDateString()}

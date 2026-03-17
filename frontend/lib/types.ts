@@ -1,45 +1,61 @@
 export interface Plant {
-  trefle_id: number;
+  id: string;
   common_name: string;
+  common_name_zh: string | null;
   scientific_name: string;
   plant_type: "flower" | "tree" | "grass";
   family: string;
-  image_url: string | null;
-  native_regions: string[];
-  description?: string;
+  genus: string;
+  description: string | null;
+  habitat: string | null;
+  hero_image_url: string | null;
+  hero_image_attribution: string | null;
+  distribution_count: number;
 }
 
-export interface OccurrencePoint {
+export interface GlobeMarker {
+  plant_id: string;
+  common_name: string;
+  plant_type: "flower" | "tree" | "grass";
   lat: number;
   lng: number;
+  elevation: number;
+  occurrence_count: number;
+  hero_image_url: string | null;
+}
+
+export interface DistributionPoint {
+  lat: number;
+  lng: number;
+  elevation: number | null;
   country: string;
-  year: number;
-  trefle_id: number;
-  plant_type: "flower" | "tree" | "grass";
-  plant_name: string;
-  image_url: string | null;
+}
+
+export interface AIResult {
+  scientific_name: string;
+  common_name: string;
+  confidence: number;
+  matched_plant_id: string | null;
+  matched_plant_image: string | null;
 }
 
 export interface UserUpload {
   id: string;
-  trefle_plant_id: number;
-  plant_common_name: string;
-  plant_scientific_name: string;
-  plant_type: string;
   image_url: string;
   thumbnail_url: string;
   latitude: number | null;
   longitude: number | null;
-  location_text: string | null;
-  ai_predicted_name: string | null;
-  ai_confidence: number | null;
+  ai_best_match_name: string | null;
+  ai_best_match_score: number | null;
+  ai_top_results: AIResult[];
+  confirmed_plant_id: string | null;
+  user_confirmed: boolean;
   ai_status:
     | "pending"
     | "approved_auto"
     | "needs_review"
-    | "rejected_auto";
+    | "not_identified";
   moderation_status: "pending" | "approved" | "rejected";
-  moderation_reason: string | null;
   submitted_at: string;
 }
 

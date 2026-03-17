@@ -13,9 +13,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+export async function fetchGlobeMarkers(params?: {
+  type?: string;
+  continent?: string;
+}) {
+  const { data } = await api.get("/globe/markers", { params });
+  return data;
+}
+
 export async function fetchPlants(params: {
   type?: string;
   search?: string;
+  continent?: string;
   page?: number;
   per_page?: number;
 }) {
@@ -23,27 +32,22 @@ export async function fetchPlants(params: {
   return data;
 }
 
-export async function fetchPlantDetail(trefleId: number) {
-  const { data } = await api.get(`/plants/${trefleId}`);
+export async function fetchPlantDetail(plantId: string) {
+  const { data } = await api.get(`/plants/${plantId}`);
   return data;
 }
 
-export async function fetchOccurrences(
-  trefleId: number,
-  scientificName?: string,
-  limit?: number
-) {
+export async function fetchDistributions(plantId: string, limit?: number) {
   const params: Record<string, any> = {};
-  if (scientificName) params.scientific_name = scientificName;
   if (limit) params.limit = limit;
-  const { data } = await api.get(`/plants/${trefleId}/occurrences`, {
+  const { data } = await api.get(`/plants/${plantId}/distributions`, {
     params: Object.keys(params).length > 0 ? params : undefined,
   });
   return data;
 }
 
-export async function fetchGallery(trefleId: number, page = 1) {
-  const { data } = await api.get(`/plants/${trefleId}/gallery`, {
+export async function fetchGallery(plantId: string, page = 1) {
+  const { data } = await api.get(`/plants/${plantId}/gallery`, {
     params: { page },
   });
   return data;
@@ -52,6 +56,13 @@ export async function fetchGallery(trefleId: number, page = 1) {
 export async function uploadPhoto(formData: FormData) {
   const { data } = await api.post("/uploads", formData, {
     headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
+export async function confirmUpload(uploadId: string, confirmedPlantId: string) {
+  const { data } = await api.post(`/uploads/${uploadId}/confirm`, {
+    confirmed_plant_id: confirmedPlantId,
   });
   return data;
 }

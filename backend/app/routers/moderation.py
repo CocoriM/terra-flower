@@ -35,14 +35,12 @@ async def get_pending(
         "uploads": [
             {
                 "id": str(u.id),
-                "trefle_plant_id": u.trefle_plant_id,
-                "plant_common_name": u.plant_common_name,
-                "plant_scientific_name": u.plant_scientific_name,
-                "plant_type": u.plant_type,
                 "image_url": u.image_url,
                 "thumbnail_url": u.thumbnail_url,
-                "ai_predicted_name": u.ai_predicted_name,
-                "ai_confidence": u.ai_confidence,
+                "ai_best_match_name": u.ai_best_match_name,
+                "ai_best_match_score": u.ai_best_match_score,
+                "ai_top_results": u.ai_top_results or [],
+                "confirmed_plant_id": str(u.confirmed_plant_id) if u.confirmed_plant_id else None,
                 "ai_status": u.ai_status,
                 "moderation_status": u.moderation_status,
                 "submitted_at": u.submitted_at.isoformat() if u.submitted_at else None,
@@ -72,15 +70,17 @@ async def approve_upload(
     upload.moderator_id = user.id
     upload.reviewed_at = datetime.utcnow()
 
-    gallery_item = ApprovedGalleryItem(
-        upload_id=upload.id,
-        trefle_plant_id=upload.trefle_plant_id,
-        latitude=upload.latitude,
-        longitude=upload.longitude,
-    )
-    db.add(gallery_item)
-    await db.commit()
+    if upload.confirmed_plant_id:
+        gallery_item = ApprovedGalleryItem(
+            upload_id=upload.id,
+            plant_id=upload.confirmed_plant_id,
+            latitude=upload.latitude,
+            longitude=upload.longitude,
+            elevation_meters=upload.elevation_meters,
+        )
+        db.add(gallery_item)
 
+    await db.commit()
     return {"detail": "Upload approved"}
 
 

@@ -2,13 +2,16 @@
 
 import { useState, useRef, useCallback } from "react";
 import { useStore } from "@/lib/store";
-import { uploadPhoto } from "@/lib/api";
+import { uploadPhoto, confirmUpload } from "@/lib/api";
+import type { AIResult } from "@/lib/types";
+
+type Step = "upload" | "results" | "done";
 
 export default function UploadModal() {
   const isOpen = useStore((s) => s.isUploadModalOpen);
   const closeModal = useStore((s) => s.closeUploadModal);
-  const selectedPlant = useStore((s) => s.selectedPlant);
 
+  const [step, setStep] = useState<Step>("upload");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [locationText, setLocationText] = useState("");
@@ -16,7 +19,13 @@ export default function UploadModal() {
   const [lng, setLng] = useState<number | null>(null);
   const [consent, setConsent] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [uploadId, setUploadId] = useState<string | null>(null);
+  const [results, setResults] = useState<AIResult[]>([]);
+  const [confirmResult, setConfirmResult] = useState<{
+    ai_status: string;
+    moderation_status: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -25,7 +34,6 @@ export default function UploadModal() {
     const f = files[0];
     setFile(f);
     setPreview(URL.createObjectURL(f));
-    setResult(null);
     setError(null);
   };
 
@@ -48,24 +56,21 @@ export default function UploadModal() {
   };
 
   const handleSubmit = async () => {
-    if (!file || !selectedPlant || !consent) return;
+    if (!file || !consent) return;
     setUploading(true);
     setError(null);
 
     const formData = new FormData();
     formData.append("image", file);
-    formData.append("trefle_plant_id", String(selectedPlant.trefle_id));
-    formData.append("plant_scientific_name", selectedPlant.scientific_name);
-    if (selectedPlant.common_name)
-      formData.append("plant_common_name", selectedPlant.common_name);
-    formData.append("plant_type", selectedPlant.plant_type);
     if (lat !== null) formData.append("latitude", String(lat));
     if (lng !== null) formData.append("longitude", String(lng));
     if (locationText) formData.append("location_text", locationText);
 
     try {
       const data = await uploadPhoto(formData);
-      setResult(data);
+      setUploadId(data.id);
+      setResults(data.ai_top_results || []);
+      setStep("results");
     } catch (err: any) {
       setError(
         err.response?.data?.detail || "Upload failed. Please try again."
@@ -75,14 +80,35 @@ export default function UploadModal() {
     }
   };
 
+  const handleConfirm = async (plantId: string) => {
+    if (!uploadId) return;
+    setConfirming(true);
+    setError(null);
+
+    try {
+      const data = await confirmUpload(uploadId, plantId);
+      setConfirmResult(data);
+      setStep("done");
+    } catch (err: any) {
+      setError(
+        err.response?.data?.detail || "Confirmation failed. Please try again."
+      );
+    } finally {
+      setConfirming(false);
+    }
+  };
+
   const handleClose = () => {
+    setStep("upload");
     setFile(null);
     setPreview(null);
     setLocationText("");
     setLat(null);
     setLng(null);
     setConsent(false);
-    setResult(null);
+    setUploadId(null);
+    setResults([]);
+    setConfirmResult(null);
     setError(null);
     closeModal();
   };
@@ -97,7 +123,11 @@ export default function UploadModal() {
     >
       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-gray-900">Upload a Photo</h2>
+          <h2 className="text-xl font-bold text-gray-900">
+            {step === "upload" && "Upload a Plant Photo"}
+            {step === "results" && "AI Identification Results"}
+            {step === "done" && "Submitted!"}
+          </h2>
           <button
             onClick={handleClose}
             className="text-gray-400 hover:text-gray-600 text-2xl"
@@ -107,30 +137,9 @@ export default function UploadModal() {
           </button>
         </div>
 
-        {result ? (
+        {/* Step 1: Upload image */}
+        {step === "upload" && (
           <div className="space-y-4">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <p className="font-medium text-green-800">Upload successful!</p>
-              {result.ai_predicted_name && (
-                <p className="text-sm text-green-700 mt-1">
-                  AI suggests: {result.ai_predicted_name} (
-                  {((result.ai_confidence || 0) * 100).toFixed(0)}% confidence)
-                </p>
-              )}
-              <p className="text-sm text-green-700 mt-1">
-                Status: {result.ai_status?.replace(/_/g, " ")}
-              </p>
-            </div>
-            <button
-              onClick={handleClose}
-              className="w-full py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600"
-            >
-              Done
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Dropzone */}
             <div
               onDrop={handleDrop}
               onDragOver={(e) => e.preventDefault()}
@@ -158,24 +167,6 @@ export default function UploadModal() {
               />
             </div>
 
-            {/* Plant name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Plant
-              </label>
-              <input
-                type="text"
-                value={
-                  selectedPlant?.common_name ||
-                  selectedPlant?.scientific_name ||
-                  ""
-                }
-                readOnly
-                className="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-600"
-              />
-            </div>
-
-            {/* Location */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Location
@@ -198,7 +189,6 @@ export default function UploadModal() {
               </div>
             </div>
 
-            {/* Consent */}
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input
                 type="checkbox"
@@ -241,11 +231,126 @@ export default function UploadModal() {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                     />
                   </svg>
-                  Uploading...
+                  Identifying...
                 </>
               ) : (
-                "Submit"
+                "Identify This Plant"
               )}
+            </button>
+          </div>
+        )}
+
+        {/* Step 2: AI results */}
+        {step === "results" && (
+          <div className="space-y-4">
+            {results.length > 0 ? (
+              <>
+                <p className="text-sm text-gray-600">
+                  This looks like:
+                </p>
+                <div className="space-y-3">
+                  {results.map((r, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg"
+                    >
+                      {r.matched_plant_image && (
+                        <img
+                          src={r.matched_plant_image}
+                          alt={r.common_name}
+                          className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 text-sm">
+                          {r.common_name}
+                        </p>
+                        <p className="text-xs text-gray-500 italic">
+                          {r.scientific_name}
+                        </p>
+                        <div className="mt-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-500 rounded-full"
+                            style={{ width: `${(r.confidence * 100).toFixed(0)}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {(r.confidence * 100).toFixed(0)}% confidence
+                        </p>
+                      </div>
+                      {r.matched_plant_id && (
+                        <button
+                          onClick={() => handleConfirm(r.matched_plant_id!)}
+                          disabled={confirming}
+                          className="px-3 py-1.5 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600 disabled:opacity-50 flex-shrink-0"
+                        >
+                          {confirming ? "..." : i === 0 ? "Yes!" : "This one"}
+                        </button>
+                      )}
+                      {!r.matched_plant_id && (
+                        <span className="text-xs text-gray-400 flex-shrink-0">
+                          Not in DB
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {error && (
+                  <p className="text-sm text-red-600 bg-red-50 rounded-lg p-3">
+                    {error}
+                  </p>
+                )}
+
+                <button
+                  onClick={handleClose}
+                  className="w-full py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                >
+                  None of these match
+                </button>
+              </>
+            ) : (
+              <div className="text-center py-6">
+                <p className="text-gray-600">
+                  Sorry, we couldn't identify this plant. Try again with a
+                  different photo.
+                </p>
+                <button
+                  onClick={handleClose}
+                  className="mt-4 px-6 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step 3: Confirmation */}
+        {step === "done" && confirmResult && (
+          <div className="space-y-4">
+            <div
+              className={`border rounded-lg p-4 ${
+                confirmResult.ai_status === "approved_auto"
+                  ? "bg-green-50 border-green-200"
+                  : "bg-yellow-50 border-yellow-200"
+              }`}
+            >
+              {confirmResult.ai_status === "approved_auto" ? (
+                <p className="font-medium text-green-800">
+                  Photo approved! It's now in the community gallery.
+                </p>
+              ) : (
+                <p className="font-medium text-yellow-800">
+                  Photo submitted for review. A moderator will check it soon.
+                </p>
+              )}
+            </div>
+            <button
+              onClick={handleClose}
+              className="w-full py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600"
+            >
+              Done
             </button>
           </div>
         )}
