@@ -1,19 +1,18 @@
 import { create } from "zustand";
-import type { Plant, OccurrencePoint, User } from "./types";
+import type { Plant, GlobeMarker, AIResult, User } from "./types";
 
 interface AppState {
   selectedPlantType: "all" | "flower" | "tree" | "grass";
   setPlantType: (type: "all" | "flower" | "tree" | "grass") => void;
-  plants: Plant[];
-  setPlants: (plants: Plant[]) => void;
-  occurrences: OccurrencePoint[];
-  setOccurrences: (points: OccurrencePoint[]) => void;
-  appendOccurrences: (points: OccurrencePoint[]) => void;
+  markers: GlobeMarker[];
+  setMarkers: (markers: GlobeMarker[]) => void;
   selectedPlant: Plant | null;
   setSelectedPlant: (plant: Plant | null) => void;
   isUploadModalOpen: boolean;
   openUploadModal: () => void;
   closeUploadModal: () => void;
+  identificationResults: AIResult[] | null;
+  setIdentificationResults: (results: AIResult[] | null) => void;
   user: User | null;
   setUser: (user: User | null) => void;
   accessToken: string | null;
@@ -23,17 +22,15 @@ interface AppState {
 export const useStore = create<AppState>((set) => ({
   selectedPlantType: "all",
   setPlantType: (type) => set({ selectedPlantType: type }),
-  plants: [],
-  setPlants: (plants) => set({ plants }),
-  occurrences: [],
-  setOccurrences: (points) => set({ occurrences: points }),
-  appendOccurrences: (points) =>
-    set((state) => ({ occurrences: [...state.occurrences, ...points] })),
+  markers: [],
+  setMarkers: (markers) => set({ markers }),
   selectedPlant: null,
   setSelectedPlant: (plant) => set({ selectedPlant: plant }),
   isUploadModalOpen: false,
   openUploadModal: () => set({ isUploadModalOpen: true }),
-  closeUploadModal: () => set({ isUploadModalOpen: false }),
+  closeUploadModal: () => set({ isUploadModalOpen: false, identificationResults: null }),
+  identificationResults: null,
+  setIdentificationResults: (results) => set({ identificationResults: results }),
   user: null,
   setUser: (user) => set({ user }),
   accessToken: null,

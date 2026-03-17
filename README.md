@@ -1,37 +1,41 @@
 # TerraFlora 🌍🌿
 
-An interactive 3D globe platform for exploring plant species around the world.
+An interactive 3D globe platform with real terrain for exploring plant species around the world.
 
 ## What users can do
 
-- **Browse** plants on a 3D Earth globe
+- **Browse** plants on a 3D Earth with real terrain (mountains, valleys, basins)
 - **Filter** by plant type — flowers, trees, or grasses
-- **Click** markers to view plant details and occurrence locations
+- **Click** markers to view plant details, distribution maps, and community photos
 - **Search** for any plant by name
-- **Upload** their own plant photos
-- **AI verification** — PlantNet checks if the photo matches the plant
-- **Community gallery** — approved photos appear for everyone to see
+- **Upload** a plant photo and let AI identify the species
+- **Confirm** the AI suggestion and contribute to the community gallery
 
 ## How it works
 
-Plant data is fetched from public biodiversity APIs (Trefle for taxonomy, GBIF for coordinates). We do not maintain our own plant database — we only store user accounts, uploaded photos, and moderation decisions.
+```
+Upload photo + location
+       ↓
+AI identifies species (PlantNet, regional flora)
+       ↓
+"This looks like a Sunflower (91%)"
+       ↓
+User confirms → photo published to gallery
+```
 
-```
-User → 3D Globe → Click Marker → Plant Detail → Upload Photo → AI Verification → Gallery
-```
+Plant taxonomy and distribution data are stored in our own curated database (seeded from GBIF). The 3D globe uses CesiumJS with Cesium World Terrain for real elevation rendering. AI identification uses PlantNet with regional flora selection for better accuracy.
 
 ## Tech stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 14, TypeScript, Tailwind CSS, react-globe.gl, Zustand |
+| Frontend | Next.js 14, TypeScript, Tailwind CSS, CesiumJS (resium), Zustand |
 | Backend | Python FastAPI, SQLAlchemy, Pydantic |
-| Database | PostgreSQL (user data only) |
-| Cache | Redis (external API responses) |
+| Database | PostgreSQL (plants + user data) |
+| Cache | Redis |
 | Storage | S3-compatible (uploaded images) |
-| Plant data | Trefle API |
-| Occurrence data | GBIF API |
-| AI identification | PlantNet API |
+| 3D Terrain | Cesium Ion (Cesium World Terrain) |
+| AI identification | PlantNet API (with regional flora) |
 
 ## Quick start
 
@@ -39,7 +43,7 @@ User → 3D Globe → Click Marker → Plant Detail → Upload Photo → AI Veri
 - Docker and Docker Compose
 - Node.js 18+
 - Python 3.11+
-- API keys: [Trefle](https://trefle.io/), [PlantNet](https://my.plantnet.org/)
+- API keys: [PlantNet](https://my.plantnet.org/), [Cesium Ion](https://cesium.com/ion/) (free accounts)
 
 ### Setup
 ```bash
@@ -49,8 +53,9 @@ docker-compose up -d
 # Backend
 cd backend
 pip install -r requirements.txt
-cp .env.example .env   # fill in your API keys
-alembic upgrade head
+cp .env.example .env              # fill in API keys
+alembic upgrade head              # create tables
+bash scripts/seed_all.sh          # run seed pipeline (~3.5 hours, one-time)
 uvicorn app.main:app --reload
 
 # Frontend
@@ -76,8 +81,9 @@ npm run dev
 
 ## Key design decisions
 
-1. **No plant database** — all plant data fetched from Trefle + GBIF, cached in Redis
-2. **Globe is the homepage** — users land directly on the interactive globe
-3. **AI-assisted, not AI-confirmed** — PlantNet provides suggestions, not guarantees
-4. **Three tables only** — users, uploads, approved gallery items
-5. **Upload pipeline** — 12-step process with validation, compression, AI check, and moderation
+1. **Self-built plant database** — curated data in PostgreSQL, seeded from GBIF, not dependent on external APIs at runtime
+2. **Real 3D terrain** — CesiumJS with Cesium World Terrain shows actual mountains and valleys
+3. **Reverse identification** — user uploads photo → AI identifies species → user confirms (no guessing needed)
+4. **Regional AI** — PlantNet queries use location-based flora projects for higher accuracy
+5. **Elevation-aware markers** — plant markers positioned at real-world altitude on the 3D terrain
+6. **AI-assisted, not AI-confirmed** — PlantNet provides suggestions, never guarantees

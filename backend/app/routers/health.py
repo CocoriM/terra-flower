@@ -32,20 +32,13 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 
     async with httpx.AsyncClient(timeout=5.0) as client:
         try:
-            resp = await client.get(f"https://trefle.io/api/v1/plants?token={settings.TREFLE_API_KEY}&per_page=1")
-            status["trefle_api"] = "reachable" if resp.status_code == 200 else "unreachable"
-        except Exception:
-            status["trefle_api"] = "unreachable"
-
-        try:
-            resp = await client.get("https://api.gbif.org/v1/species/match?name=Quercus")
-            status["gbif_api"] = "reachable" if resp.status_code == 200 else "unreachable"
-        except Exception:
-            status["gbif_api"] = "unreachable"
-
-        try:
             status["plantnet_api"] = "reachable" if settings.PLANTNET_API_KEY else "not configured"
         except Exception:
             status["plantnet_api"] = "unreachable"
+
+        try:
+            status["cesium_ion"] = "configured" if settings.CESIUM_ION_TOKEN else "not configured"
+        except Exception:
+            status["cesium_ion"] = "unreachable"
 
     return status

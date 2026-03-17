@@ -27,7 +27,7 @@ export default function PlantDetailDrawer() {
     let cancelled = false;
     setLoading(true);
 
-    fetchPlantDetail(selectedPlant.trefle_id)
+    fetchPlantDetail(selectedPlant.id)
       .then((data) => {
         if (!cancelled) setDetail(data);
       })
@@ -70,9 +70,9 @@ export default function PlantDetailDrawer() {
       ) : (
         <>
           {/* Hero image */}
-          {plant.image_url && (
+          {plant.hero_image_url && (
             <img
-              src={plant.image_url}
+              src={plant.hero_image_url}
               alt={plant.common_name || plant.scientific_name}
               className="h-48 w-full object-cover"
             />
@@ -84,6 +84,9 @@ export default function PlantDetailDrawer() {
               <h2 className="text-2xl font-bold text-gray-900">
                 {plant.common_name || plant.scientific_name}
               </h2>
+              {plant.common_name_zh && (
+                <p className="text-sm text-gray-600">{plant.common_name_zh}</p>
+              )}
               {plant.common_name && (
                 <p className="text-sm italic text-gray-500">
                   {plant.scientific_name}
@@ -98,11 +101,20 @@ export default function PlantDetailDrawer() {
               {plant.plant_type}
             </span>
 
-            {/* Regions */}
-            {plant.native_regions && plant.native_regions.length > 0 && (
+            {/* Family & genus */}
+            {(plant.family || plant.genus) && (
               <p className="text-sm text-gray-600">
-                <span className="font-medium">Native to:</span>{" "}
-                {plant.native_regions.join(", ")}
+                {plant.family && (
+                  <>
+                    <span className="font-medium">Family:</span> {plant.family}
+                  </>
+                )}
+                {plant.family && plant.genus && " · "}
+                {plant.genus && (
+                  <>
+                    <span className="font-medium">Genus:</span> {plant.genus}
+                  </>
+                )}
               </p>
             )}
 
@@ -120,7 +132,7 @@ export default function PlantDetailDrawer() {
               <h3 className="text-lg font-semibold text-gray-900 mb-3">
                 Community Photos
               </h3>
-              <PlantGallery trefleId={plant.trefle_id} />
+              <PlantGallery plantId={plant.id} />
             </div>
 
             <UploadButton />

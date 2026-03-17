@@ -13,13 +13,12 @@ import StatusBadge from "@/components/StatusBadge";
 
 interface PendingUpload {
   id: string;
-  plant_common_name: string;
-  plant_scientific_name: string;
   thumbnail_url: string;
   image_url: string;
-  ai_predicted_name: string | null;
-  ai_confidence: number | null;
+  ai_best_match_name: string | null;
+  ai_best_match_score: number | null;
   ai_status: string;
+  confirmed_plant_id: string | null;
 }
 
 export default function ModerationPage() {
@@ -90,18 +89,14 @@ export default function ModerationPage() {
               >
                 <img
                   src={u.thumbnail_url || u.image_url}
-                  alt={u.plant_common_name || "Upload"}
+                  alt={u.ai_best_match_name || "Upload"}
                   className="w-24 h-24 object-cover rounded-lg flex-shrink-0"
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-700">
-                    <span className="font-medium">User selected:</span>{" "}
-                    {u.plant_common_name || u.plant_scientific_name}
-                  </p>
-                  <p className="text-sm text-gray-700">
-                    <span className="font-medium">AI prediction:</span>{" "}
-                    {u.ai_predicted_name || "N/A"} (
-                    {((u.ai_confidence || 0) * 100).toFixed(0)}%)
+                    <span className="font-medium">AI suggestion:</span>{" "}
+                    {u.ai_best_match_name || "N/A"} (
+                    {((u.ai_best_match_score || 0) * 100).toFixed(0)}%)
                   </p>
                   <div className="mt-1">
                     <StatusBadge status={u.ai_status} />

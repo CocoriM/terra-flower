@@ -4,14 +4,16 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from PIL import Image
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.gallery import ApprovedGalleryItem
+from app.models.plant import Plant
 from app.models.upload import UserUpload
 from app.models.user import User
 from app.services.plantnet import plantnet_service
@@ -25,55 +27,20 @@ MAX_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_COMPRESSED = 2 * 1024 * 1024  # 2MB
 
 
-async def _run_ai_verification(upload_id: str, image_bytes: bytes, expected_name: str):
-    from app.database import async_session
-
-    ai_result = await plantnet_service.identify(image_bytes)
-
-    async with async_session() as db:
-        result = await db.execute(select(UserUpload).where(UserUpload.id == upload_id))
-        upload = result.scalar_one_or_none()
-        if not upload:
-            return
-
-        upload.ai_predicted_name = ai_result.get("predicted_name")
-        upload.ai_confidence = ai_result.get("confidence", 0)
-        upload.ai_top_results = ai_result.get("top_results", [])
-
-        if ai_result.get("error"):
-            upload.ai_status = "needs_review"
-        else:
-            upload.ai_status = plantnet_service.decide_status(
-                ai_result["confidence"], ai_result.get("predicted_name"), expected_name
-            )
-
-        if upload.ai_status == "approved_auto":
-            upload.moderation_status = "approved"
-            gallery_item = ApprovedGalleryItem(
-                upload_id=upload.id,
-                trefle_plant_id=upload.trefle_plant_id,
-                latitude=upload.latitude,
-                longitude=upload.longitude,
-            )
-            db.add(gallery_item)
-
-        await db.commit()
+class ConfirmRequest(BaseModel):
+    confirmed_plant_id: str
 
 
 @router.post("")
 async def create_upload(
-    background_tasks: BackgroundTasks,
     image: UploadFile = File(...),
-    trefle_plant_id: int = Form(...),
-    plant_scientific_name: str = Form(...),
-    plant_common_name: str = Form(None),
-    plant_type: str = Form(None),
     latitude: float = Form(None),
     longitude: float = Form(None),
     location_text: str = Form(None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Reverse identification: user uploads image, AI identifies the plant."""
     # Step 1: Validate MIME
     if image.content_type not in ALLOWED_MIMES:
         raise HTTPException(status_code=400, detail="Only JPEG, PNG, and WebP images are accepted")
@@ -146,20 +113,27 @@ async def create_upload(
         logger.exception("Image storage upload failed")
         raise HTTPException(status_code=500, detail="Failed to upload image to storage")
 
-    # Step 8: Create DB record
+    # Step 8: Call PlantNet with regional project
+    ai_result = await plantnet_service.identify(compressed_bytes, latitude, longitude)
+
+    # Step 9: Match AI results against our plant database
+    ai_top_results = ai_result.get("top_results", [])
+    matched_results = await plantnet_service.match_with_database(ai_top_results, db)
+
+    # Step 10: Create DB record
     upload_record = UserUpload(
         id=upload_uuid,
         user_id=user.id,
-        trefle_plant_id=trefle_plant_id,
-        plant_scientific_name=plant_scientific_name,
-        plant_common_name=plant_common_name,
-        plant_type=plant_type,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
         image_hash=image_hash,
         latitude=latitude,
         longitude=longitude,
         location_text=location_text,
+        ai_top_results=matched_results,
+        ai_best_match_name=ai_result.get("best_match_name"),
+        ai_best_match_score=ai_result.get("best_match_score", 0),
+        ai_project_used=ai_result.get("project_used"),
         ai_status="pending",
         moderation_status="pending",
     )
@@ -167,32 +141,77 @@ async def create_upload(
     await db.commit()
     await db.refresh(upload_record)
 
-    # Step 9-11: Background AI verification
-    background_tasks.add_task(
-        _run_ai_verification,
-        str(upload_record.id),
-        compressed_bytes,
-        plant_scientific_name,
-    )
-
-    # Step 12: Return record
+    # Step 11: Return upload with AI suggestions
     return {
         "id": str(upload_record.id),
-        "trefle_plant_id": upload_record.trefle_plant_id,
-        "plant_common_name": upload_record.plant_common_name,
-        "plant_scientific_name": upload_record.plant_scientific_name,
-        "plant_type": upload_record.plant_type,
         "image_url": upload_record.image_url,
         "thumbnail_url": upload_record.thumbnail_url,
         "latitude": upload_record.latitude,
         "longitude": upload_record.longitude,
-        "location_text": upload_record.location_text,
-        "ai_predicted_name": upload_record.ai_predicted_name,
-        "ai_confidence": upload_record.ai_confidence,
+        "ai_best_match_name": upload_record.ai_best_match_name,
+        "ai_best_match_score": upload_record.ai_best_match_score,
+        "ai_top_results": matched_results,
         "ai_status": upload_record.ai_status,
         "moderation_status": upload_record.moderation_status,
-        "moderation_reason": upload_record.moderation_reason,
         "submitted_at": upload_record.submitted_at.isoformat() if upload_record.submitted_at else None,
+    }
+
+
+@router.post("/{upload_id}/confirm")
+async def confirm_upload(
+    upload_id: str,
+    body: ConfirmRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """User confirms which species the AI identified correctly."""
+    result = await db.execute(
+        select(UserUpload).where(UserUpload.id == upload_id, UserUpload.user_id == user.id)
+    )
+    upload = result.scalar_one_or_none()
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+
+    if upload.user_confirmed:
+        raise HTTPException(status_code=400, detail="Already confirmed")
+
+    # Verify the plant exists in our DB
+    plant_result = await db.execute(
+        select(Plant).where(Plant.id == body.confirmed_plant_id)
+    )
+    plant = plant_result.scalar_one_or_none()
+    if not plant:
+        raise HTTPException(status_code=404, detail="Plant not found in database")
+
+    # Update upload with confirmation
+    upload.confirmed_plant_id = plant.id
+    upload.user_confirmed = True
+
+    # Apply decision rules
+    score = upload.ai_best_match_score or 0
+    ai_status = plantnet_service.decide_status(score, has_db_match=True)
+    upload.ai_status = ai_status
+
+    if ai_status == "approved_auto":
+        upload.moderation_status = "approved"
+        gallery_item = ApprovedGalleryItem(
+            upload_id=upload.id,
+            plant_id=plant.id,
+            latitude=upload.latitude,
+            longitude=upload.longitude,
+            elevation_meters=upload.elevation_meters,
+        )
+        db.add(gallery_item)
+
+    await db.commit()
+    await db.refresh(upload)
+
+    return {
+        "id": str(upload.id),
+        "confirmed_plant_id": str(upload.confirmed_plant_id),
+        "user_confirmed": upload.user_confirmed,
+        "ai_status": upload.ai_status,
+        "moderation_status": upload.moderation_status,
     }
 
 
@@ -217,19 +236,17 @@ async def get_my_uploads(
         "uploads": [
             {
                 "id": str(u.id),
-                "trefle_plant_id": u.trefle_plant_id,
-                "plant_common_name": u.plant_common_name,
-                "plant_scientific_name": u.plant_scientific_name,
-                "plant_type": u.plant_type,
                 "image_url": u.image_url,
                 "thumbnail_url": u.thumbnail_url,
                 "latitude": u.latitude,
                 "longitude": u.longitude,
-                "ai_predicted_name": u.ai_predicted_name,
-                "ai_confidence": u.ai_confidence,
+                "ai_best_match_name": u.ai_best_match_name,
+                "ai_best_match_score": u.ai_best_match_score,
+                "ai_top_results": u.ai_top_results or [],
+                "confirmed_plant_id": str(u.confirmed_plant_id) if u.confirmed_plant_id else None,
+                "user_confirmed": u.user_confirmed,
                 "ai_status": u.ai_status,
                 "moderation_status": u.moderation_status,
-                "moderation_reason": u.moderation_reason,
                 "submitted_at": u.submitted_at.isoformat() if u.submitted_at else None,
             }
             for u in uploads

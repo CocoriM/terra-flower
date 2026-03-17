@@ -7,17 +7,16 @@ interface GalleryItem {
   id: string;
   image_url: string;
   thumbnail_url: string;
-  plant_common_name: string;
 }
 
-export default function PlantGallery({ trefleId }: { trefleId: number }) {
+export default function PlantGallery({ plantId }: { plantId: string }) {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchGallery(trefleId)
+    fetchGallery(plantId)
       .then((data) => {
         if (!cancelled) setItems(data.items || []);
       })
@@ -28,7 +27,7 @@ export default function PlantGallery({ trefleId }: { trefleId: number }) {
     return () => {
       cancelled = true;
     };
-  }, [trefleId]);
+  }, [plantId]);
 
   if (loading) {
     return (
@@ -57,7 +56,7 @@ export default function PlantGallery({ trefleId }: { trefleId: number }) {
         <img
           key={item.id}
           src={item.thumbnail_url || item.image_url}
-          alt={item.plant_common_name || "Plant photo"}
+          alt="Plant photo"
           className="aspect-square object-cover rounded"
         />
       ))}

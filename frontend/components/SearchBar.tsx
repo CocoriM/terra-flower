@@ -1,22 +1,16 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { fetchPlants, fetchOccurrences } from "@/lib/api";
+import { fetchPlants, fetchPlantDetail } from "@/lib/api";
 import { useStore } from "@/lib/store";
-import type { Plant, OccurrencePoint } from "@/lib/types";
+import type { Plant } from "@/lib/types";
 
-interface SearchBarProps {
-  globeRef: React.MutableRefObject<any>;
-}
-
-export default function SearchBar({ globeRef }: SearchBarProps) {
+export default function SearchBar() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Plant[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const setOccurrences = useStore((s) => s.setOccurrences);
   const setSelectedPlant = useStore((s) => s.setSelectedPlant);
-  const occurrences = useStore((s) => s.occurrences);
 
   const handleSearch = useCallback(async (q: string) => {
     if (!q.trim()) {
@@ -43,28 +37,12 @@ export default function SearchBar({ globeRef }: SearchBarProps) {
   const handleSelect = async (plant: Plant) => {
     setQuery(plant.common_name || plant.scientific_name);
     setIsOpen(false);
-    setSelectedPlant(plant);
 
     try {
-      const occData = await fetchOccurrences(plant.trefle_id);
-      const points: OccurrencePoint[] = (occData.occurrences || []).map(
-        (o: any) => ({
-          ...o,
-          trefle_id: plant.trefle_id,
-          plant_type: plant.plant_type,
-          plant_name: plant.common_name || plant.scientific_name,
-        })
-      );
-      setOccurrences([...occurrences, ...points]);
-
-      if (points.length > 0 && globeRef.current) {
-        globeRef.current.pointOfView(
-          { lat: points[0].lat, lng: points[0].lng, altitude: 1.5 },
-          1000
-        );
-      }
+      const detail = await fetchPlantDetail(plant.id);
+      setSelectedPlant(detail);
     } catch {
-      // occurrence data unavailable
+      setSelectedPlant(plant);
     }
   };
 
@@ -87,7 +65,7 @@ export default function SearchBar({ globeRef }: SearchBarProps) {
       {isOpen && results.length > 0 && (
         <ul className="mt-1 bg-white rounded-lg shadow-lg overflow-hidden max-h-64 overflow-y-auto">
           {results.map((plant) => (
-            <li key={plant.trefle_id}>
+            <li key={plant.id}>
               <button
                 onClick={() => handleSelect(plant)}
                 className="w-full px-4 py-2 text-left hover:bg-gray-100 text-sm"
