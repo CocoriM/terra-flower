@@ -13,5 +13,7 @@ frontend/tsconfig.tsbuildinfo
 backend/__pycache__/
 backend/**/*.pyc
 backend/media/
+backend/venv/
 
 *.log
+backend/venv/

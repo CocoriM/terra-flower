@@ -48,6 +48,9 @@ export default function CesiumGlobe() {
       selectionIndicator: false,
     });
 
+    // 2a: Enable day/night cycle — sun position from Cesium clock
+    viewer.scene.globe.enableLighting = true;
+
     // Set terrain asynchronously (createWorldTerrain removed in Cesium 1.107+)
     Cesium.createWorldTerrainAsync()
       .then((terrain: any) => {
@@ -68,6 +71,22 @@ export default function CesiumGlobe() {
         handleMarkerClick(marker);
       }
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+    // Enable trackpad pinch-to-zoom on Mac
+    const controller = viewer.scene.screenSpaceCameraController;
+    controller.enableZoom = true;
+    controller.zoomEventTypes = [
+      Cesium.CameraEventType.WHEEL,
+      Cesium.CameraEventType.PINCH,
+    ];
+    controller.tiltEventTypes = [
+      Cesium.CameraEventType.MIDDLE_DRAG,
+      Cesium.CameraEventType.PINCH,
+      {
+        eventType: Cesium.CameraEventType.LEFT_DRAG,
+        modifier: Cesium.KeyboardEventModifier.CTRL,
+      },
+    ];
 
     viewerRef.current = viewer;
 
@@ -201,7 +220,7 @@ export default function CesiumGlobe() {
           </div>
         </div>
       )}
-      <div ref={containerRef} className="w-full h-full" />
+      <div ref={containerRef} className="w-full h-full" style={{ touchAction: "none" }} />
     </div>
   );
 }
