@@ -16,3 +16,4 @@ backend/media/
 backend/venv/
 
 *.log
+backend/venv/

@@ -48,6 +48,9 @@ export default function CesiumGlobe() {
       selectionIndicator: false,
     });
 
+    // 2a: Enable day/night cycle — sun position from Cesium clock
+    viewer.scene.globe.enableLighting = true;
+
     // Set terrain asynchronously (createWorldTerrain removed in Cesium 1.107+)
     Cesium.createWorldTerrainAsync()
       .then((terrain: any) => {
