@@ -49,7 +49,7 @@ export default function PlantDetailDrawer() {
     <div
       role="dialog"
       aria-label="Plant details"
-      className="fixed right-0 top-0 h-full w-[420px] max-md:w-full max-md:h-[80vh] max-md:bottom-0 max-md:top-auto max-md:rounded-t-2xl bg-white shadow-2xl z-40 overflow-y-auto"
+      className="fixed right-0 top-0 h-full w-[420px] max-md:w-full max-md:h-[80vh] max-md:bottom-0 max-md:top-auto max-md:rounded-t-2xl bg-white shadow-2xl z-[60] overflow-y-auto pt-14"
     >
       {/* Close button */}
       <button

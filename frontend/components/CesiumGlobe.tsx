@@ -69,6 +69,22 @@ export default function CesiumGlobe() {
       }
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
+    // Enable trackpad pinch-to-zoom on Mac
+    const controller = viewer.scene.screenSpaceCameraController;
+    controller.enableZoom = true;
+    controller.zoomEventTypes = [
+      Cesium.CameraEventType.WHEEL,
+      Cesium.CameraEventType.PINCH,
+    ];
+    controller.tiltEventTypes = [
+      Cesium.CameraEventType.MIDDLE_DRAG,
+      Cesium.CameraEventType.PINCH,
+      {
+        eventType: Cesium.CameraEventType.LEFT_DRAG,
+        modifier: Cesium.KeyboardEventModifier.CTRL,
+      },
+    ];
+
     viewerRef.current = viewer;
 
     return () => {
@@ -201,7 +217,7 @@ export default function CesiumGlobe() {
           </div>
         </div>
       )}
-      <div ref={containerRef} className="w-full h-full" />
+      <div ref={containerRef} className="w-full h-full" style={{ touchAction: "none" }} />
     </div>
   );
 }
