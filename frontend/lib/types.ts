@@ -22,6 +22,7 @@ export interface GlobeMarker {
   elevation: number;
   occurrence_count: number;
   hero_image_url: string | null;
+  bloom_months: number[] | null; // e.g. [3, 4, 5] for Mar–May
 }
 
 export interface DistributionPoint {

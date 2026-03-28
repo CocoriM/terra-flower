@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Navbar from "@/components/Navbar";
 import SearchBar from "@/components/SearchBar";
 import FilterBar from "@/components/FilterBar";
+import TimeSlider from "@/components/TimeSlider";
 import PlantDetailDrawer from "@/components/PlantDetailDrawer";
 import UploadModal from "@/components/UploadModal";
 
@@ -23,6 +24,7 @@ export default function GlobePage() {
       <FilterBar />
       <SearchBar />
       <CesiumGlobe />
+      <TimeSlider />
       <PlantDetailDrawer />
       <UploadModal />
     </main>

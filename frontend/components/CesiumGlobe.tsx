@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useStore } from "@/lib/store";
 import { fetchGlobeMarkers, fetchPlantDetail } from "@/lib/api";
+import { createAurora, updateAuroraMonth } from "@/lib/aurora";
+import type { AuroraHandle } from "@/lib/aurora";
 import type { GlobeMarker } from "@/lib/types";
 
 declare global {
@@ -22,10 +24,13 @@ export default function CesiumGlobe() {
   const markers = useStore((s) => s.markers);
   const setMarkers = useStore((s) => s.setMarkers);
   const setSelectedPlant = useStore((s) => s.setSelectedPlant);
+  const currentMonth = useStore((s) => s.currentMonth);
+  const showAllPlants = useStore((s) => s.showAllPlants);
   const [loading, setLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<any>(null);
   const entitiesRef = useRef<Map<string, any>>(new Map());
+  const auroraRef = useRef<AuroraHandle | null>(null);
 
   // Initialize Cesium viewer
   useEffect(() => {
@@ -90,7 +95,14 @@ export default function CesiumGlobe() {
 
     viewerRef.current = viewer;
 
+    // Initialize aurora borealis / australis
+    auroraRef.current = createAurora(viewer, currentMonth);
+
     return () => {
+      if (auroraRef.current) {
+        auroraRef.current.cleanup();
+        auroraRef.current = null;
+      }
       handler.destroy();
       if (!viewer.isDestroyed()) viewer.destroy();
       viewerRef.current = null;
@@ -121,11 +133,36 @@ export default function CesiumGlobe() {
     };
   }, [setMarkers]);
 
-  // Filter markers by type
+  // Sync Cesium clock with time slider month (for day/night lighting position)
+  useEffect(() => {
+    const Cesium = window.Cesium;
+    const viewer = viewerRef.current;
+    if (!Cesium || !viewer || viewer.isDestroyed()) return;
+
+    // Set clock to the 15th of the selected month (mid-month) at noon UTC
+    const date = new Date(2024, currentMonth - 1, 15, 12, 0, 0);
+    viewer.clock.currentTime = Cesium.JulianDate.fromDate(date);
+    viewer.clock.shouldAnimate = false;
+
+    // Update aurora intensity for the new month
+    if (auroraRef.current) {
+      updateAuroraMonth(auroraRef.current, currentMonth);
+    }
+  }, [currentMonth]);
+
+  // Filter markers by type and bloom season
   const filteredMarkers = useMemo(() => {
-    if (selectedPlantType === "all") return markers;
-    return markers.filter((m) => m.plant_type === selectedPlantType);
-  }, [markers, selectedPlantType]);
+    let filtered = markers;
+    if (selectedPlantType !== "all") {
+      filtered = filtered.filter((m) => m.plant_type === selectedPlantType);
+    }
+    if (!showAllPlants) {
+      filtered = filtered.filter(
+        (m) => m.bloom_months && m.bloom_months.includes(currentMonth)
+      );
+    }
+    return filtered;
+  }, [markers, selectedPlantType, showAllPlants, currentMonth]);
 
   // Sync entities with filtered markers
   useEffect(() => {
