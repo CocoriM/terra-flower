@@ -6,6 +6,10 @@ interface AppState {
   setPlantType: (type: "all" | "flower" | "tree" | "grass") => void;
   markers: GlobeMarker[];
   setMarkers: (markers: GlobeMarker[]) => void;
+  currentMonth: number; // 1–12
+  setCurrentMonth: (month: number) => void;
+  showAllPlants: boolean; // true = ignore bloom filter
+  setShowAllPlants: (show: boolean) => void;
   selectedPlant: Plant | null;
   setSelectedPlant: (plant: Plant | null) => void;
   isUploadModalOpen: boolean;
@@ -24,6 +28,10 @@ export const useStore = create<AppState>((set) => ({
   setPlantType: (type) => set({ selectedPlantType: type }),
   markers: [],
   setMarkers: (markers) => set({ markers }),
+  currentMonth: new Date().getMonth() + 1, // default to current month
+  setCurrentMonth: (month) => set({ currentMonth: month }),
+  showAllPlants: true, // default: show all, not just blooming
+  setShowAllPlants: (show) => set({ showAllPlants: show }),
   selectedPlant: null,
   setSelectedPlant: (plant) => set({ selectedPlant: plant }),
   isUploadModalOpen: false,

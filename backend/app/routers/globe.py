@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,9 +27,10 @@ async def get_globe_markers(
             func.avg(PlantDistributionPoint.longitude).label("lng"),
             func.coalesce(func.avg(PlantDistributionPoint.elevation_meters), 0).label("elevation"),
             func.count(PlantDistributionPoint.id).label("occurrence_count"),
+            Plant.bloom_season,
         )
         .join(PlantDistributionPoint, PlantDistributionPoint.plant_id == Plant.id)
-        .group_by(Plant.id, Plant.common_name, Plant.plant_type, Plant.hero_image_url)
+        .group_by(Plant.id, Plant.common_name, Plant.plant_type, Plant.hero_image_url, Plant.bloom_season)
     )
 
     if type != "all":
@@ -37,6 +40,14 @@ async def get_globe_markers(
 
     result = await db.execute(query)
     rows = result.all()
+
+    def parse_bloom(raw: str) -> list:
+        if not raw:
+            return None
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return None
 
     markers = [
         {
@@ -48,6 +59,7 @@ async def get_globe_markers(
             "elevation": round(row.elevation, 1),
             "occurrence_count": row.occurrence_count,
             "hero_image_url": row.hero_image_url,
+            "bloom_months": parse_bloom(row.bloom_season),
         }
         for row in rows
     ]
